@@ -31,11 +31,15 @@ int main()
 	SOCKET sClient;
 	sockaddr_in servAddr;
 	sockaddr_in clientAddr;
-	const int BUFSIZE = 1024;
+	const int BUFSIZE = 1019;
 	const int portId = 1996;
-	char buf[BUFSIZE];
-	char sendBuf[BUFSIZE];
-	int retVal;
+	char recvBuf[BUFSIZE] = {0};
+	char sendBuf[BUFSIZE] = {0};
+	char bufTop[BUFSIZE+5] = {"f1996"};
+	char bufEnd[10] = {"e1996"};
+	int retVal = 0;
+	int nCount = 0; // for send file
+	int time = 0; // load in times.
 
 	// initial socket dll
 	if (WSAStartup(MAKEWORD(2, 2), &wsaD) != 0) // windows sokcet api version 2.2
@@ -86,11 +90,36 @@ int main()
 		return -1;
 	}
 
-	// accept client's data
+	// check whether the file is exist
+	char* filename = "D:\\sqlmap.rar";
+	// char* filename = "E:\\python workspace\\test.txt";
+	FILE* fp = NULL;
+	if (fopen_s(&fp, filename, "rb") != 0)
+	{
+		cout << "open file failed!" << endl;
+	}
+
+	// transform the file
+	while ((nCount = fread_s(sendBuf, BUFSIZE, 1, BUFSIZE, fp)) > 0)
+	{
+		strcat(bufTop, sendBuf);
+		// strcat(bufTop, bufEnd);
+		send(sClient, bufTop, sizeof(bufTop), 0);
+		memset(bufTop+5, 0, BUFSIZE);
+		// time++;
+	}
+	send(sClient, "1996e", 5, 0);
+	fclose(fp);
+	
 	while(TRUE)
 	{
-		ZeroMemory(buf, BUFSIZE);
-		retVal = recv(sClient, buf, BUFSIZE, 0); // para: server in, buf out, len in, flags
+		// send data to client
+		cout << "send data to client:";
+		cin >> sendBuf;
+		send(sClient, sendBuf, strlen(sendBuf)+1, 0);
+
+		// accept client's data
+		retVal = recv(sClient, recvBuf, BUFSIZE, 0); // para: server in, recvBuf out, len in, flags
 		if (SOCKET_ERROR == retVal)
 		{
 			cout << "accetp data failed!" << endl;
@@ -100,17 +129,12 @@ int main()
 			return -1;
 		}
 
-		if (buf[0] == '\0')
+		if (recvBuf[0] == '\0')
 		{
 			break;
 		}
 
-		cout << "data from client:" << buf << endl;
-
-		// send data to client
-		cout << "send data to client:";
-		cin >> sendBuf;
-		send(sClient, sendBuf, strlen(sendBuf)+1, 0);
+		cout << "data from client:" << recvBuf << endl;
 	}
 
 	// exit
