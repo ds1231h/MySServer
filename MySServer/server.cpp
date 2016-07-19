@@ -32,6 +32,7 @@ int main()
 	sockaddr_in servAddr;
 	sockaddr_in clientAddr;
 	const int BUFSIZE = 1024;
+	const int portId = 1996;
 	char buf[BUFSIZE];
 	char sendBuf[BUFSIZE];
 	int retVal;
@@ -54,7 +55,7 @@ int main()
 
 	// server socket address
 	servAddr.sin_family = AF_INET;
-	servAddr.sin_port = htons(1996);
+	servAddr.sin_port = htons(portId);
 	servAddr.sin_addr.s_addr = INADDR_ANY;
 
 	// bind socket
@@ -84,10 +85,6 @@ int main()
 		WSACleanup();
 		return -1;
 	}
-	else
-	{
-		cout << "accetp request succeed!" << endl;
-	}
 
 	// accept client's data
 	while(TRUE)
@@ -101,10 +98,6 @@ int main()
 			closesocket(sClient);
 			WSACleanup();
 			return -1;
-		}
-		else
-		{
-			cout << "accetp data succeed!" << endl;
 		}
 
 		if (buf[0] == '\0')
