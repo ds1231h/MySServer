@@ -1,9 +1,10 @@
 /*
 My socket server 
-version 1.0
+version 1.1
 MuPei
 2016.07.19
 function: server for only one client
+			send file to client
 */
 
 /*
@@ -24,22 +25,113 @@ step:
 
 using namespace std;
 
+const int BUFSIZE = 1019;
+char sendBuf[BUFSIZE] = {0};
+sockaddr_in clientAddr;
+int clientAddrLen = sizeof(clientAddr);
+SOCKET sServer;
+SOCKET sClient;
+
+void sendData(void* soc)
+{
+	sClient = *(SOCKET*)soc;
+	int retVal = 0;
+
+	while (TRUE)
+	{
+		// send data to server
+		cin >> sendBuf;
+		retVal = send(sClient, sendBuf, strlen(sendBuf), 0); // para: in socket, out recvBuf,in len, flags
+		if (SOCKET_ERROR == retVal)
+		{
+			cout << "send data failed!" << endl;
+			// 			closesocket(*sServer);
+			// 			WSACleanup();
+			// 			return ;
+			continue;
+		}
+	}
+	// exit
+	closesocket(sClient);
+	WSACleanup();
+	return ;
+}
+
+void recvData(void* soc)
+{
+	sClient = *(SOCKET*)soc;
+	int retVal = 0;
+	char recvBuf[BUFSIZE] = {0};
+
+	while(TRUE)
+	{
+		// accept client's data
+		retVal = recv(sClient, recvBuf, BUFSIZE, 0); // para: in socket, out recvBuf,in len, flags
+		if (SOCKET_ERROR == retVal)
+		{
+			cout << "accetp data failed!" << endl;
+			closesocket(sClient);
+			WSACleanup();
+			return;
+		}
+		cout << "data from client:" << recvBuf << endl;
+	}
+	// exit
+	closesocket(sClient);
+	WSACleanup();
+	return ;
+}
+
+SOCKET acceptReqst()
+{
+	// accetp client's request
+	sClient = accept(sServer, (sockaddr*)& clientAddr, &clientAddrLen); // para: in socket, out address, addrlen 
+	if (INVALID_SOCKET == sClient)
+	{
+		cout << "accetp request failed!" << endl;
+		closesocket(sServer);
+		WSACleanup();
+		return -1;
+	}
+	return sClient;
+}
+
+void sendFile()
+{
+	char bufTop[BUFSIZE+5] = {"f1996"};
+	int nCount = 0; // for send file
+
+	// send file
+	// check whether the file is exist
+	char* filename = "D:\\sqlmap.rar";
+	// char* filename = "E:\\python workspace\\test.txt";
+	FILE* fp = NULL;
+	if (fopen_s(&fp, filename, "rb") != 0)
+	{
+		cout << "open file failed!" << endl;
+	}
+
+	// transform the file
+	while ((nCount = fread_s(sendBuf, BUFSIZE, 1, BUFSIZE-1, fp)) > 0)
+	{
+		strcat(bufTop, sendBuf);
+		// strcat(bufTop, bufEnd);
+		send(sClient, bufTop, sizeof(bufTop), 0);
+		memset(bufTop+5, 0, BUFSIZE);
+		// time++;
+	}
+	send(sClient, "1996e", 5, 0);
+	fclose(fp); // transform file finish
+}
+
 int main()
 {
 	WSADATA wsaD;
-	SOCKET sServer;
-	SOCKET sClient;
 	sockaddr_in servAddr;
-	sockaddr_in clientAddr;
-	const int BUFSIZE = 1019;
 	const int portId = 1996;
-	char recvBuf[BUFSIZE] = {0};
-	char sendBuf[BUFSIZE] = {0};
-	char bufTop[BUFSIZE+5] = {"f1996"};
-	char bufEnd[10] = {"e1996"};
 	int retVal = 0;
-	int nCount = 0; // for send file
-	int time = 0; // load in times.
+	// int time = 0; // load in times.
+	bool tFile = FALSE; // whether transform file
 
 	// initial socket dll
 	if (WSAStartup(MAKEWORD(2, 2), &wsaD) != 0) // windows sokcet api version 2.2
@@ -79,63 +171,19 @@ int main()
 	// start listening
 	retVal = listen(sServer, 1); // listen one client
 
-	// accetp client's request
-	int clientAddrLen = sizeof(clientAddr);
-	sClient = accept(sServer, (sockaddr*)& clientAddr, &clientAddrLen); // para: server in ,address out ,addrlen 
-	if (INVALID_SOCKET == sClient)
-	{
-		cout << "accetp request failed!" << endl;
-		closesocket(sServer);
-		WSACleanup();
-		return -1;
-	}
+	_beginthread(sendData, 0, &sClient);
 
-	// check whether the file is exist
-	char* filename = "D:\\sqlmap.rar";
-	// char* filename = "E:\\python workspace\\test.txt";
-	FILE* fp = NULL;
-	if (fopen_s(&fp, filename, "rb") != 0)
+	while (TRUE)
 	{
-		cout << "open file failed!" << endl;
-	}
-
-	// transform the file
-	while ((nCount = fread_s(sendBuf, BUFSIZE, 1, BUFSIZE, fp)) > 0)
-	{
-		strcat(bufTop, sendBuf);
-		// strcat(bufTop, bufEnd);
-		send(sClient, bufTop, sizeof(bufTop), 0);
-		memset(bufTop+5, 0, BUFSIZE);
-		// time++;
-	}
-	send(sClient, "1996e", 5, 0);
-	fclose(fp);
-	
-	while(TRUE)
-	{
-		// send data to client
-		cout << "send data to client:";
-		cin >> sendBuf;
-		send(sClient, sendBuf, strlen(sendBuf)+1, 0);
-
-		// accept client's data
-		retVal = recv(sClient, recvBuf, BUFSIZE, 0); // para: server in, recvBuf out, len in, flags
-		if (SOCKET_ERROR == retVal)
+		sClient = acceptReqst();
+		if (!tFile)
 		{
-			cout << "accetp data failed!" << endl;
-			closesocket(sServer);
-			closesocket(sClient);
-			WSACleanup();
-			return -1;
+			sendFile();
+			tFile = TRUE;
 		}
-
-		if (recvBuf[0] == '\0')
-		{
-			break;
-		}
-
-		cout << "data from client:" << recvBuf << endl;
+		_beginthread(recvData, 0, &sClient);
 	}
+
 
 	// exit
 	closesocket(sServer);
