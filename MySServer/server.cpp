@@ -50,8 +50,10 @@ void sendData(void* soc)
 
 	while (TRUE)
 	{
+		memset(sendBuf, 0, BUFSIZE);
 		// send data to server
 		cin >> sendBuf;
+		// scanf_s("%s", sendBuf);
 
 		for (int i = CONNECT_NUM; i > CONNECT_NUM-connectId; i--)
 		{
@@ -111,6 +113,7 @@ void recvData(void* soc)
 		if (findSoc(sClient) != NULL) // exist
 		{
 			cout << "data from client:" << recvBuf << endl;
+			memset(recvBuf, 0, BUFSIZE);
 		} 
 		else
 		{
@@ -150,7 +153,9 @@ SOCKET acceptReqst()
 void sendFile()
 {
 	char bufTop[BUFSIZE+5] = {"f1996"};
+	char* szBuff = NULL;
 	int nCount = 0; // for send file
+	int nSend = 0;
 
 	// send file
 	// check whether the file is exist
@@ -163,16 +168,29 @@ void sendFile()
 	}
 
 	// transform the file
-	while ((nCount = fread_s(sendBuf, BUFSIZE, 1, BUFSIZE-1, fp)) > 0)
+	WIN32_FIND_DATA FindFileData;
+	FindClose(FindFirstFile(filename, &FindFileData));
+	send(sClient, (const char*)&FindFileData, sizeof(WIN32_FIND_DATA), 0);
+	while (nCount < FindFileData.nFileSizeLow)
 	{
-		strcat(bufTop, sendBuf);
-		// strcat(bufTop, bufEnd);
-		send(sClient, bufTop, sizeof(bufTop), 0);
-		memset(bufTop+5, 0, BUFSIZE);
-		// time++;
+		szBuff = new char[1024];
+		memset(szBuff, 0, 1024);
+		nSend = fread_s(szBuff, 1024, 1, 1024, fp);
+		send(sClient, szBuff, nSend, 0);
 	}
-	send(sClient, "1996e", 5, 0);
+	delete szBuff;
+	cout << "transform file succeed!" << endl;
+// 	while ((nCount = fread_s(sendBuf, BUFSIZE, 1, BUFSIZE-1, fp)) > 0)
+// 	{
+// 		strcat(bufTop, sendBuf);
+// 		// strcat(bufTop, bufEnd);
+// 		send(sClient, bufTop, sizeof(bufTop)-1, 0); // don't send '\0'
+// 		memset(bufTop+5, 0, BUFSIZE);
+// 		// time++;
+// 	}
+// 	send(sClient, "1996e", 5, 0);
 	fclose(fp); // transform file finish
+	return ;
 }
 
 int main()
