@@ -1,10 +1,10 @@
 /*
 My socket server 
-version 1.1
+version 1.2
 MuPei
-2016.07.19
-function: server for only one client
-			send file to client
+2016.07.21
+function: server for n clients
+			send file to the first clien
 */
 
 /*
@@ -22,15 +22,26 @@ step:
 #include <stdafx.h>
 #include <WinSock2.h>
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
 const int BUFSIZE = 1019;
+const int CONNECT_NUM = 20;
 char sendBuf[BUFSIZE] = {0};
 sockaddr_in clientAddr;
 int clientAddrLen = sizeof(clientAddr);
 SOCKET sServer;
 SOCKET sClient;
+struct sockInfo
+{
+	char usrName[10];
+	char keyWord[10];
+	SOCKET sClient_in;
+}sockInf[100] = {0};
+vector<SOCKET> cList(CONNECT_NUM, 0);
+vector<SOCKET>::iterator ite;
+int connectId = 0;
 
 void sendData(void* soc)
 {
@@ -41,14 +52,19 @@ void sendData(void* soc)
 	{
 		// send data to server
 		cin >> sendBuf;
-		retVal = send(sClient, sendBuf, strlen(sendBuf), 0); // para: in socket, out recvBuf,in len, flags
-		if (SOCKET_ERROR == retVal)
+
+		for (int i = CONNECT_NUM; i > CONNECT_NUM-connectId; i--)
 		{
-			cout << "send data failed!" << endl;
-			// 			closesocket(*sServer);
-			// 			WSACleanup();
-			// 			return ;
-			continue;
+			sClient = cList[i];
+			retVal = send(sClient, sendBuf, strlen(sendBuf), 0); // para: in socket, out recvBuf,in len, flags
+			if (SOCKET_ERROR == retVal)
+			{
+				cout << "send data failed!" << endl;
+				// 			closesocket(*sServer);
+				// 			WSACleanup();
+				// 			return ;
+				continue;
+			}
 		}
 	}
 	// exit
@@ -57,8 +73,25 @@ void sendData(void* soc)
 	return ;
 }
 
+SOCKET findSoc(SOCKET aSocket)
+{
+	ite  = cList.begin();
+
+	while (ite !=  cList.end())
+	{
+		if (*ite == aSocket)
+		{
+			return *ite; // find
+		}
+		ite++;
+	}
+	return NULL;
+}
+
 void recvData(void* soc)
 {
+	// data from client include: 
+	// first time: socket, usrname, keyword
 	sClient = *(SOCKET*)soc;
 	int retVal = 0;
 	char recvBuf[BUFSIZE] = {0};
@@ -66,7 +99,7 @@ void recvData(void* soc)
 	while(TRUE)
 	{
 		// accept client's data
-		retVal = recv(sClient, recvBuf, BUFSIZE, 0); // para: in socket, out recvBuf,in len, flags
+		retVal = recv(sClient,recvBuf, BUFSIZE, 0); // para: in socket, out recvBuf,in len, flags
 		if (SOCKET_ERROR == retVal)
 		{
 			cout << "accetp data failed!" << endl;
@@ -74,7 +107,21 @@ void recvData(void* soc)
 			WSACleanup();
 			return;
 		}
-		cout << "data from client:" << recvBuf << endl;
+
+		if (findSoc(sClient) != NULL) // exist
+		{
+			cout << "data from client:" << recvBuf << endl;
+		} 
+		else
+		{
+			cList.push_back(sClient);
+			// add usrName and keyWord
+			strcpy(sockInf[connectId].usrName, recvBuf);
+			strcpy(sockInf[connectId].keyWord,recvBuf+sizeof(sockInf[connectId].usrName));
+			sockInf[connectId].sClient_in = sClient;
+			connectId++;
+			cout << sockInf[connectId].usrName << "upload succeed" << endl;
+		}
 	}
 	// exit
 	closesocket(sClient);
@@ -92,6 +139,10 @@ SOCKET acceptReqst()
 		closesocket(sServer);
 		WSACleanup();
 		return -1;
+	}
+	else
+	{
+		cout << "new client connect!" << endl;
 	}
 	return sClient;
 }
@@ -131,7 +182,7 @@ int main()
 	const int portId = 1996;
 	int retVal = 0;
 	// int time = 0; // load in times.
-	bool tFile = FALSE; // whether transform file
+	bool tFile = TRUE; // whether transform file
 
 	// initial socket dll
 	if (WSAStartup(MAKEWORD(2, 2), &wsaD) != 0) // windows sokcet api version 2.2
@@ -171,17 +222,20 @@ int main()
 	// start listening
 	retVal = listen(sServer, 1); // listen one client
 
-	_beginthread(sendData, 0, &sClient);
-
 	while (TRUE)
 	{
 		sClient = acceptReqst();
-		if (!tFile)
+		_beginthread(recvData, 0, &sClient);
+		if (tFile)
 		{
 			sendFile();
-			tFile = TRUE;
+			tFile = FALSE;
+			
 		}
-		_beginthread(recvData, 0, &sClient);
+		if (!tFile)
+		{
+			_beginthread(sendData, 0, &sClient);
+		}
 	}
 
 
@@ -189,6 +243,7 @@ int main()
 	closesocket(sServer);
 	closesocket(sClient);
 	WSACleanup();
+
 
 	return 0;
 }
