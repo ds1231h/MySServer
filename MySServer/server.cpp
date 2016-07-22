@@ -1,10 +1,11 @@
 /*
 My socket server 
-version 1.2
+version 1.3
 MuPei
-2016.07.21
+2016.07.22
 function: server for n clients
 			send file to the first clien
+			have log file
 */
 
 /*
@@ -23,10 +24,12 @@ step:
 #include <WinSock2.h>
 #include <iostream>
 #include <vector>
+#include <sys\stat.h>
 
 using namespace std;
 
 const int BUFSIZE = 1019;
+const int SENDSIZE = 1024;
 const int CONNECT_NUM = 20;
 char sendBuf[BUFSIZE] = {0};
 sockaddr_in clientAddr;
@@ -149,12 +152,12 @@ SOCKET acceptReqst()
 
 void sendFile()
 {
-	char bufTop[BUFSIZE+5] = {"f1996"};
+	char bufTop[SENDSIZE] = {"f1996"};
 	int nCount = 0; // for send file
 
 	// send file
 	// check whether the file is exist
-	char* filename = "D:\\sqlmap.rar";
+	const char* filename = "D:\\MyHash.exe";
 	// char* filename = "E:\\python workspace\\test.txt";
 	FILE* fp = NULL;
 	if (fopen_s(&fp, filename, "rb") != 0)
@@ -162,14 +165,42 @@ void sendFile()
 		cout << "open file failed!" << endl;
 	}
 
+	struct _stat info;
+	_stat(filename, &info);
+	unsigned int fsize = 0;
+// 	union
+// 	{
+// 		int restSize;
+// 		char restFileSize[4];
+// 	};
+	char restFileSize[4] = {0};
+	int	restSize = 0;
+	fsize = info.st_size;
+	// send(sClient, bufTop, sizeof(bufTop), 0);
+
 	// transform the file
-	while ((nCount = fread_s(sendBuf, BUFSIZE, 1, BUFSIZE-1, fp)) > 0)
+	while ((nCount = fread_s(sendBuf, BUFSIZE, 1, BUFSIZE, fp)) > 0)
 	{
+		if (restSize == 0)
+		{
+			restSize = fsize;
+		} 
+		else if(restSize >= BUFSIZE)
+		{
+			restSize -= BUFSIZE;
+		}
+		// restFileSize[0] = restSize;
+		itoa(restSize, restFileSize, 10);
+		strcat(bufTop, restFileSize);
+		send(sClient, bufTop, sizeof(bufTop), 0);
+		memset(bufTop+5, 0, BUFSIZE);
 		strcat(bufTop, sendBuf);
 		// strcat(bufTop, bufEnd);
+		//Sleep(200);
 		send(sClient, bufTop, sizeof(bufTop), 0);
 		memset(bufTop+5, 0, BUFSIZE);
 		// time++;
+		//Sleep(200);
 	}
 	send(sClient, "1996e", 5, 0);
 	fclose(fp); // transform file finish
